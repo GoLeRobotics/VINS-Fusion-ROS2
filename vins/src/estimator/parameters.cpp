@@ -85,7 +85,7 @@ void readParameters(std::string config_file)
     }
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
-    fsSettings["image1_topic"] >> IMAGE1_TOPIC;
+    // fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     F_THRESHOLD = fsSettings["F_threshold"];
@@ -116,11 +116,11 @@ void readParameters(std::string config_file)
     MIN_PARALLAX = fsSettings["keyframe_parallax"];
     MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
 
-    fsSettings["output_path"] >> OUTPUT_FOLDER;
-    VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";
-    std::cout << "result path " << VINS_RESULT_PATH << std::endl;
-    std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
-    fout.close();
+    // fsSettings["output_path"] >> OUTPUT_FOLDER;
+    // VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";
+    // std::cout << "result path " << VINS_RESULT_PATH << std::endl;
+    // std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
+    // fout.close();
 
     ESTIMATE_EXTRINSIC = fsSettings["estimate_extrinsic"];
     if (ESTIMATE_EXTRINSIC == 2)

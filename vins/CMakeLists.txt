@@ -20,14 +20,8 @@ find_package(cv_bridge REQUIRED)
 find_package(camera_models REQUIRED)
 find_package(image_transport REQUIRED)
 
-
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
-
-# easy profiler
-set(CMAKE_PREFIX_PATH /home/gole006/Downloads/easy_profiler/lib/cmake/easy_profiler)
-find_package(easy_profiler REQUIRED)
-include_directories("/home/gole006/Downloads/easy_profiler/include")
 
 #shared_memory
 set(GOLE_CORE_LIB $ENV{GOLE_CORE_LIB})
