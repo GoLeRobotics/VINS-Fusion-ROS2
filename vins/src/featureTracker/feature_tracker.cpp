@@ -10,7 +10,6 @@
  *******************************************************/
 
 #include "feature_tracker.h"
-#include <easy/profiler.h>
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
@@ -128,7 +127,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             TicToc t_o;
 
             vector<float> err;
-            EASY_BLOCK("calc optical flow", profiler::colors::LimeA200);
             if(hasPrediction)
             {
                 cur_pts = predict_pts;
@@ -253,7 +251,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             // printf("gpu temporal optical flow costs: %f ms\n",t_og.toc());
         }
 #endif
-        EASY_END_BLOCK;
 
         for (int i = 0; i < int(cur_pts.size()); i++)
             if (status[i] && !inBorder(cur_pts[i]))
@@ -279,8 +276,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         // ROS_DEBUG("set mask costs %fms", t_m.toc());
         // printf("set mask costs %fms\n", t_m.toc());
         ROS_DEBUG("detect feature begins");
-        
-        EASY_BLOCK("Extract Feature", profiler::colors::PinkA200);
+
         int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());
         if(!USE_GPU)
         {
@@ -333,122 +329,19 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 n_pts.clear();
         }
 #endif
-        EASY_END_BLOCK;
-
-        EASY_BLOCK("Add Feature", profiler::colors::IndigoA100);
 
         ROS_DEBUG("add feature begins");
         TicToc t_a;
         addPoints();
         // ROS_DEBUG("selectFeature costs: %fms", t_a.toc());
         // printf("selectFeature costs: %fms\n", t_a.toc());
-        EASY_END_BLOCK;
     }
 
     cur_un_pts = undistortedPts(cur_pts, m_camera[0]);
     pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map);
 
-    if(!_img1.empty() && stereo_cam) // stereo
-    {
-        ids_right.clear();
-        cur_right_pts.clear();
-        cur_un_right_pts.clear();
-        right_pts_velocity.clear();
-        cur_un_right_pts_map.clear();
-        if(!cur_pts.empty())
-        {
-            //printf("stereo image; track feature on right image\n");
-
-            vector<cv::Point2f> reverseLeftPts;
-            vector<uchar> status, statusRightLeft;
-            if(!USE_GPU_ACC_FLOW)
-            {
-                TicToc t_check;
-                vector<float> err;
-                // cur left ---- cur right
-                cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
-                // reverse check cur right ---- cur left
-                if(FLOW_BACK)
-                {
-                    cv::calcOpticalFlowPyrLK(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
-                    for(size_t i = 0; i < status.size(); i++)
-                    {
-                        if(status[i] && statusRightLeft[i] && inBorder(cur_right_pts[i]) && distance(cur_pts[i], reverseLeftPts[i]) <= 0.5)
-                            status[i] = 1;
-                        else
-                            status[i] = 0;
-                    }
-                }
-                // printf("left right optical flow cost %fms\n",t_check.toc());
-            }
-#ifdef GPU_MODE
-            else
-            {
-                TicToc t_og1;
-                cv::cuda::GpuMat cur_gpu_img(cur_img);
-                cv::cuda::GpuMat right_gpu_Img(rightImg);
-                cv::cuda::GpuMat cur_gpu_pts(cur_pts);
-                cv::cuda::GpuMat cur_right_gpu_pts;
-                cv::cuda::GpuMat gpu_status;
-                cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cv::cuda::SparsePyrLKOpticalFlow::create(
-                cv::Size(21, 21), 3, 30, false);
-                d_pyrLK_sparse->calc(cur_gpu_img, right_gpu_Img, cur_gpu_pts, cur_right_gpu_pts, gpu_status);
-
-                vector<cv::Point2f> tmp_cur_right_pts(cur_right_gpu_pts.cols);
-                cur_right_gpu_pts.download(tmp_cur_right_pts);
-                cur_right_pts = tmp_cur_right_pts;
-
-                vector<uchar> tmp_status(gpu_status.cols);
-                gpu_status.download(tmp_status);
-                status = tmp_status;
-
-                if(FLOW_BACK)
-                {   
-                    cv::cuda::GpuMat reverseLeft_gpu_Pts;
-                    cv::cuda::GpuMat status_gpu_RightLeft;
-                    cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cv::cuda::SparsePyrLKOpticalFlow::create(
-                    cv::Size(21, 21), 3, 30, false);
-                    d_pyrLK_sparse->calc(right_gpu_Img, cur_gpu_img, cur_right_gpu_pts, reverseLeft_gpu_Pts, status_gpu_RightLeft);
-
-                    vector<cv::Point2f> tmp_reverseLeft_Pts(reverseLeft_gpu_Pts.cols);
-                    reverseLeft_gpu_Pts.download(tmp_reverseLeft_Pts);
-                    reverseLeftPts = tmp_reverseLeft_Pts;
-
-                    vector<uchar> tmp1_status(status_gpu_RightLeft.cols);
-                    status_gpu_RightLeft.download(tmp1_status);
-                    statusRightLeft = tmp1_status;
-                    for(size_t i = 0; i < status.size(); i++)
-                    {
-                        if(status[i] && statusRightLeft[i] && inBorder(cur_right_pts[i]) && distance(cur_pts[i], reverseLeftPts[i]) <= 0.5)
-                            status[i] = 1;
-                        else
-                            status[i] = 0;
-                    }
-                }
-                // printf("gpu left right optical flow cost %fms\n",t_og1.toc());
-            }
-#endif
-            ids_right = ids;
-            reduceVector(cur_right_pts, status);
-            reduceVector(ids_right, status);
-            // only keep left-right pts
-            /*
-            reduceVector(cur_pts, status);
-            reduceVector(ids, status);
-            reduceVector(track_cnt, status);
-            reduceVector(cur_un_pts, status);
-            reduceVector(pts_velocity, status);
-            */
-            cur_un_right_pts = undistortedPts(cur_right_pts, m_camera[1]);
-            right_pts_velocity = ptsVelocity(ids_right, cur_un_right_pts, cur_un_right_pts_map, prev_un_right_pts_map);
-            
-        }
-        prev_un_right_pts_map = cur_un_right_pts_map;
-    }
     if(SHOW_TRACK)
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
-
-    EASY_BLOCK("Make FeatureFrame", profiler::colors::TealA200);
 
     prev_img = cur_img;
     prev_pts = cur_pts;
@@ -481,7 +374,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
-    EASY_END_BLOCK;
 
     if (!_img1.empty() && stereo_cam)
     {

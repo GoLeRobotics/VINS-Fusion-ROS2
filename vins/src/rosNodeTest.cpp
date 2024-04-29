@@ -17,7 +17,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
-#include <easy/profiler.h>
 #include "estimator/estimator.h"
 #include "estimator/parameters.h"
 #include "utility/visualization.h"
@@ -46,7 +45,6 @@ void img1_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
     img1_buf.push(img_msg);
     m_buf.unlock();
 }
-
 
 // cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::SharedPtr img_msg)
 cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::ConstPtr &img_msg)
@@ -80,87 +78,38 @@ void sync_process()
     static int ts_cnt = 0;
     while(1)
     {
-        if(STEREO)
+        cv::Mat image;
+        std_msgs::msg::Header header;
+        double time = 0;
+
+        m_buf.lock();
+        if(!img0_buf.empty())
         {
-            cv::Mat image0, image1;
-            std_msgs::msg::Header header;
-            double time = 0;
-            m_buf.lock();
-            if (!img0_buf.empty() && !img1_buf.empty())
-            {
-                double time0 = img0_buf.front()->header.stamp.sec + img0_buf.front()->header.stamp.nanosec * (1e-9);
-                double time1 = img1_buf.front()->header.stamp.sec + img1_buf.front()->header.stamp.nanosec * (1e-9);
-
-                // 0.003s sync tolerance
-                if(time0 < time1 - 0.003)
-                {
-                    img0_buf.pop();
-                    printf("throw img0\n");
-                }
-                else if(time0 > time1 + 0.003)
-                {
-                    img1_buf.pop();
-                    printf("throw img1\n");
-                }
-                else
-                {
-                    time = img0_buf.front()->header.stamp.sec + img0_buf.front()->header.stamp.nanosec * (1e-9);
-                    header = img0_buf.front()->header;
-                    image0 = getImageFromMsg(img0_buf.front());
-                    img0_buf.pop();
-                    image1 = getImageFromMsg(img1_buf.front());
-                    img1_buf.pop();
-                    //printf("find img0 and img1\n");
-
-                    // std::cout << std::fixed << img0_buf.front()->header.stamp.sec + img0_buf.front()->header.stamp.nanosec * (1e-9) << std::endl;
-                    // assert(0);
-
-                }
-            }
-            m_buf.unlock();
-            if(!image0.empty())
-                estimator.inputImage(time, image0, image1);
-        }
-        else // if not stereo
-        {
-            EASY_THREAD("Sync Process");
-            cv::Mat image;
-            std_msgs::msg::Header header;
-            double time = 0;
-
-            m_buf.lock();
-            EASY_BLOCK("Get Image From Msg", profiler::colors::Amber400);
-            if(!img0_buf.empty())
-            {
-                time = img0_buf.front()->header.stamp.sec + img0_buf.front()->header.stamp.nanosec * (1e-9);
-                header = img0_buf.front()->header;
-                image = getImageFromMsg(img0_buf.front());
-                img0_buf.pop();
+            time = img0_buf.front()->header.stamp.sec + img0_buf.front()->header.stamp.nanosec * (1e-9);
+            header = img0_buf.front()->header;
+            image = getImageFromMsg(img0_buf.front());
+            img0_buf.pop();
 
 #ifdef DEBUG
-                // calculate fps
-                double time_stamp = (header.stamp.sec + header.stamp.nanosec* (1e-9)) * (1e3);
-                double time_diff = std::abs(time_stamp - last_ts);
-                sum_of_ts += time_diff;
-                ++ts_cnt;
-                if (header.stamp.sec - ts >= 1)
-                {
-                    std::cout << "msg fps : " << 1000 / (sum_of_ts / ts_cnt) << std::endl;
-                    sum_of_ts = 0;
-                    ts_cnt = 0;
-                    ts = header.stamp.sec;
-                }
-                last_ts = time_stamp;
-#endif
+            // calculate fps
+            double time_stamp = (header.stamp.sec + header.stamp.nanosec* (1e-9)) * (1e3);
+            double time_diff = std::abs(time_stamp - last_ts);
+            sum_of_ts += time_diff;
+            ++ts_cnt;
+            if (header.stamp.sec - ts >= 1)
+            {
+                std::cout << "msg fps : " << 1000 / (sum_of_ts / ts_cnt) << std::endl;
+                sum_of_ts = 0;
+                ts_cnt = 0;
+                ts = header.stamp.sec;
             }
-            EASY_END_BLOCK;
-            EASY_BLOCK("Input Image", profiler::colors::Amber100);
+            last_ts = time_stamp;
+#endif
+        }
             m_buf.unlock();
             if(!image.empty()){
                 estimator.inputImage(time, image);
             }
-            EASY_END_BLOCK;
-        }
 
         std::chrono::milliseconds dura(2);
         std::this_thread::sleep_for(dura);
@@ -170,7 +119,6 @@ void sync_process()
 
 void imu_callback(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
 {
-    EASY_BLOCK("IMU Callback", profiler::colors::PurpleA100);
     // std::cout << "IMU cb" << std::endl;
 
     double t = imu_msg->header.stamp.sec + imu_msg->header.stamp.nanosec * (1e-9);
@@ -186,13 +134,11 @@ void imu_callback(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
     // std::cout << "got t_imu: " << std::fixed << t << endl;
     estimator.inputIMU(t, acc, gyr);
     return;
-    EASY_END_BLOCK;
 }
 
 
 void feature_callback(const sensor_msgs::msg::PointCloud::SharedPtr feature_msg)
 {
-    EASY_BLOCK("Feature Callback", profiler::colors::YellowA200);
     std::cout << "feature cb" << std::endl;
     std::cout << "Feature: " << feature_msg->points.size() << std::endl;
 
@@ -225,12 +171,10 @@ void feature_callback(const sensor_msgs::msg::PointCloud::SharedPtr feature_msg)
     double t = feature_msg->header.stamp.sec + feature_msg->header.stamp.nanosec * (1e-9);
     estimator.inputFeature(t, featureFrame);
     return;
-    EASY_END_BLOCK;
 }
 
 void restart_callback(const std_msgs::msg::Bool::SharedPtr restart_msg)
 {
-    EASY_BLOCK("Restart Estimator", profiler::colors::DeepPurpleA200);
     if (restart_msg->data == true)
     {
         ROS_WARN("restart the estimator!");
@@ -238,7 +182,6 @@ void restart_callback(const std_msgs::msg::Bool::SharedPtr restart_msg)
         estimator.setParameter();
     }
     return;
-    EASY_END_BLOCK;
 }
 
 void imu_switch_callback(const std_msgs::msg::Bool::SharedPtr switch_msg)
@@ -273,8 +216,6 @@ void cam_switch_callback(const std_msgs::msg::Bool::SharedPtr switch_msg)
 
 int main(int argc, char **argv)
 {
-    EASY_PROFILER_ENABLE;
-
     rclcpp::init(argc, argv);
 	auto n = rclcpp::Node::make_shared("vins_estimator");
     // ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
@@ -292,9 +233,7 @@ int main(int argc, char **argv)
 
     readParameters(config_file);
 
-    EASY_BLOCK("Set Parameter", profiler::colors::LightGreenA200);
     estimator.setParameter();
-    EASY_END_BLOCK;
 
 #ifdef EIGEN_DONT_PARALLELIZE
     ROS_DEBUG("EIGEN_DONT_PARALLELIZE");
@@ -314,22 +253,13 @@ int main(int argc, char **argv)
     auto sub_img0 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE0_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), img0_callback);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_img1 = NULL;
-    if(STEREO)
-    {
-        sub_img1 = n->create_subscription<sensor_msgs::msg::Image>(IMAGE1_TOPIC, rclcpp::QoS(rclcpp::KeepLast(100)), img1_callback);
-    }
 
     auto sub_restart = n->create_subscription<std_msgs::msg::Bool>("/vins_restart", rclcpp::QoS(rclcpp::KeepLast(100)), restart_callback);
     auto sub_imu_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_imu_switch", rclcpp::QoS(rclcpp::KeepLast(100)), imu_switch_callback);
     auto sub_cam_switch = n->create_subscription<std_msgs::msg::Bool>("/vins_cam_switch", rclcpp::QoS(rclcpp::KeepLast(100)), cam_switch_callback);
 
-    EASY_MAIN_THREAD;
-    EASY_BLOCK("Main process", profiler::colors::Blue100);
     std::thread sync_thread{sync_process};
     rclcpp::spin(n); // execute n nodes
-    EASY_END_BLOCK;
-
-    profiler::dumpBlocksToFile("/home/gole006/dev/proj/gole_vio/VINS-Fusion-ROS2/test.prof");
 
     return 0;
 }

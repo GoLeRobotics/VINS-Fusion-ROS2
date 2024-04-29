@@ -9,7 +9,6 @@
 
 #include "estimator.h"
 #include "../utility/visualization.h"
-#include <easy/profiler.h>
 
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -119,14 +118,12 @@ void Estimator::setParameter()
     featureTracker.readIntrinsicParameter(CAM_NAMES);
 
     std::cout << "MULTIPLE_THREAD is " << MULTIPLE_THREAD << '\n';
-    EASY_BLOCK("Process Measurements", profiler::colors::CyanA100);
     if (MULTIPLE_THREAD && !initThreadFlag)
     {
         initThreadFlag = true;
         processThread = std::thread(&Estimator::processMeasurements, this);
     }
     mProcess.unlock();
-    EASY_END_BLOCK;
 }
 
 void Estimator::changeSensorType(int use_imu, int use_stereo)
@@ -155,9 +152,6 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
                 last_marginalization_parameter_blocks.clear();
             }
         }
-        
-        STEREO = use_stereo;
-        printf("use imu %d use stereo %d\n", USE_IMU, STEREO);
     }
     mProcess.unlock();
     if(restart)
@@ -173,21 +167,14 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
 
-    EASY_BLOCK("Track image", profiler::colors::CyanA100);
-    if(_img1.empty()) // monocular mode
-        featureFrame = featureTracker.trackImage(t, _img);
-    else // stereo mode
-        featureFrame = featureTracker.trackImage(t, _img, _img1);
+    featureFrame = featureTracker.trackImage(t, _img);
     //printf("featureTracker time: %f\n", featureTrackerTime.toc());
-    EASY_END_BLOCK;
 
-    EASY_BLOCK("Pub track Image", profiler::colors::Red);
     if (SHOW_TRACK)
     {
         cv::Mat imgTrack = featureTracker.getTrackImage();
         pubTrackImage(imgTrack, t); // t = time
     }
-    EASY_END_BLOCK;
 
     if(MULTIPLE_THREAD)
     {
@@ -207,7 +194,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         processMeasurements();
         printf("process time: %f\n", processTime.toc());
     }
-    
+
 }
 
 void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity)
@@ -290,7 +277,6 @@ bool Estimator::IMUAvailable(double t)
 
 void Estimator::processMeasurements()
 {
-    EASY_THREAD("Process Measurements");
 
 #ifdef DEBUG
     double ts = 0;
@@ -326,19 +312,16 @@ void Estimator::processMeasurements()
             }
             // cout << "2" << endl;
             mBuf.lock();
-            EASY_BLOCK("Get IMU Interval", profiler::colors::LimeA200);
             if(USE_IMU)
             {
                 // cout << "2-1)" << endl;
                 getIMUInterval(prevTime, curTime, accVector, gyrVector);
                 // cout << "2-2)" << endl;
             }
-            EASY_END_BLOCK;
 
             featureBuf.pop();
             mBuf.unlock();
 
-            EASY_BLOCK("Init IMU pose", profiler::colors::PinkA200);
             // cout << "3" << endl;
             if(USE_IMU)
             {
@@ -356,19 +339,14 @@ void Estimator::processMeasurements()
                     processIMU(accVector[i].first, dt, accVector[i].second, gyrVector[i].second);
                 }
             }
-            EASY_END_BLOCK;
 
             // cout << "4" << endl;
-            EASY_BLOCK("Process Image features", profiler::colors::TealA200);
             mProcess.lock();
             processImage(feature.second, feature.first);
             prevTime = curTime;
-            EASY_END_BLOCK;
 #ifdef PRINT
             // cout << "5" << endl;
-            EASY_BLOCK("Print Stats", profiler::colors::IndigoA100);
             printStatistics(*this, 0);
-            EASY_END_BLOCK;
 
             std_msgs::msg::Header header;
             header.frame_id = "world";
@@ -546,13 +524,11 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             if (frame_count == WINDOW_SIZE)
             {
                 bool result = false;
-                EASY_BLOCK("Check IMU initial Structure", profiler::colors::PurpleA100);
                 if(ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
                 {
                     result = initialStructure();
                     initial_timestamp = header;
                 }
-                EASY_END_BLOCK;
                 if(result)
                 {
                     optimization();
@@ -563,34 +539,6 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
                 }
                 else
                     slideWindow();
-            }
-        }
-
-        // stereo + IMU initilization
-        if(STEREO && USE_IMU)
-        {
-            f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
-            f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
-            if (frame_count == WINDOW_SIZE)
-            {
-                map<double, ImageFrame>::iterator frame_it;
-                int i = 0;
-                for (frame_it = all_image_frame.begin(); frame_it != all_image_frame.end(); frame_it++)
-                {
-                    frame_it->second.R = Rs[i];
-                    frame_it->second.T = Ps[i];
-                    i++;
-                }
-                solveGyroscopeBias(all_image_frame, Bgs);
-                for (int i = 0; i <= WINDOW_SIZE; i++)
-                {
-                    pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
-                }
-                optimization();
-                updateLatestStates();
-                solver_flag = NON_LINEAR;
-                slideWindow();
-                ROS_INFO("Initialization finish!");
             }
         }
 
@@ -666,7 +614,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         last_R0 = Rs[0];
         last_P0 = Ps[0];
         updateLatestStates();
-    }  
+    }
 }
 
 bool Estimator::initialStructure()
@@ -718,7 +666,7 @@ bool Estimator::initialStructure()
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
         }
         sfm_f.push_back(tmp_feature);
-    } 
+    }
     Matrix3d relative_R;
     Vector3d relative_T;
     int l;
@@ -1181,23 +1129,6 @@ void Estimator::optimization()
                 problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
             }
 
-            if(STEREO && it_per_frame.is_stereo)
-            {
-                Vector3d pts_j_right = it_per_frame.pointRight;
-                if(imu_i != imu_j)
-                {
-                    ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                 it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                    problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
-                }
-                else
-                {
-                    ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                 it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                    problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
-                }
-
-            }
             f_m_cnt++;
         }
     }
@@ -1302,28 +1233,6 @@ void Estimator::optimization()
                                                                                         vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
                                                                                         vector<int>{0, 3});
                         marginalization_info->addResidualBlockInfo(residual_block_info);
-                    }
-                    if(STEREO && it_per_frame.is_stereo)
-                    {
-                        Vector3d pts_j_right = it_per_frame.pointRight;
-                        if(imu_i != imu_j)
-                        {
-                            ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                            ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
-                                                                                           vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
-                                                                                           vector<int>{0, 4});
-                            marginalization_info->addResidualBlockInfo(residual_block_info);
-                        }
-                        else
-                        {
-                            ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                            ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
-                                                                                           vector<double *>{para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
-                                                                                           vector<int>{2});
-                            marginalization_info->addResidualBlockInfo(residual_block_info);
-                        }
                     }
                 }
             }
@@ -1649,29 +1558,6 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                 //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
             }
             // need to rewrite projecton factor.........
-            if(STEREO && it_per_frame.is_stereo)
-            {
-                
-                Vector3d pts_j_right = it_per_frame.pointRight;
-                if(imu_i != imu_j)
-                {            
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
-                                                        Rs[imu_j], Ps[imu_j], ric[1], tic[1],
-                                                        depth, pts_i, pts_j_right);
-                    err += tmp_error;
-                    errCnt++;
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
-                }
-                else
-                {
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
-                                                        Rs[imu_j], Ps[imu_j], ric[1], tic[1],
-                                                        depth, pts_i, pts_j_right);
-                    err += tmp_error;
-                    errCnt++;
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
-                }       
-            }
         }
         double ave_err = err / errCnt;
         if(ave_err * FOCAL_LENGTH > 3)
@@ -1682,7 +1568,6 @@ void Estimator::outliersRejection(set<int> &removeIndex)
 
 void Estimator::fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity)
 {
-    EASY_BLOCK("Predict IMU", profiler::colors::Orange400);
     double dt = t - latest_time;
     latest_time = t;
     Eigen::Vector3d un_acc_0 = latest_Q * (latest_acc_0 - latest_Ba) - g;
@@ -1694,12 +1579,10 @@ void Estimator::fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Ei
     latest_V = latest_V + dt * un_acc;
     latest_acc_0 = linear_acceleration;
     latest_gyr_0 = angular_velocity;
-    EASY_END_BLOCK;
 }
 
 void Estimator::updateLatestStates()
 {
-    EASY_BLOCK("Update Latest States", profiler::colors::Green100);
     mPropagate.lock();
     latest_time = Headers[frame_count] + td;
     latest_P = Ps[frame_count];
@@ -1745,6 +1628,4 @@ void Estimator::updateLatestStates()
     odom_state_.cov_twist_ob = cov;
 
     odom_shm_.SetData(odom_state_);
-
-    EASY_END_BLOCK;
 }
