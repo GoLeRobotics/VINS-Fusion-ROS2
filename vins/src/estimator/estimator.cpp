@@ -10,8 +10,6 @@
 #include "estimator.h"
 #include "../utility/visualization.h"
 
-// #define PRINT
-
 Estimator::Estimator(): f_manager{Rs}
 {
     ROS_INFO("init begins");
@@ -346,7 +344,7 @@ void Estimator::processMeasurements()
             mProcess.lock();
             processImage(feature.second, feature.first);
             prevTime = curTime;
-#ifdef PRINT
+
             // cout << "5" << endl;
             printStatistics(*this, 0);
 
@@ -375,7 +373,6 @@ void Estimator::processMeasurements()
             // cout << "6" << endl;
 
             // assert(0);
-#endif
 
 #ifdef DEBUG
             // calculate fps after processing
