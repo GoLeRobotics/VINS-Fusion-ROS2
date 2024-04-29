@@ -19,7 +19,6 @@ image_height: 480
 use_gpu         : 0
 use_gpu_acc_flow: 0
 use_gpu_ceres   : 0
-   
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.

@@ -10,6 +10,7 @@
  *******************************************************/
 
 #include "feature_tracker.h"
+#include <easy/profiler.h>
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
@@ -125,14 +126,15 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         if(!USE_GPU_ACC_FLOW)
         {
             TicToc t_o;
-            
+
             vector<float> err;
+            EASY_BLOCK("calc optical flow", profiler::colors::LimeA200);
             if(hasPrediction)
             {
                 cur_pts = predict_pts;
-                cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1, 
+                cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1,
                 cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
-                
+
                 int succ_num = 0;
                 for (size_t i = 0; i < status.size(); i++)
                 {
@@ -144,6 +146,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             }
             else
                 cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+
             // reverse check
             if(FLOW_BACK)
             {
@@ -250,7 +253,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             // printf("gpu temporal optical flow costs: %f ms\n",t_og.toc());
         }
 #endif
-    
+        EASY_END_BLOCK;
+
         for (int i = 0; i < int(cur_pts.size()); i++)
             if (status[i] && !inBorder(cur_pts[i]))
                 status[i] = 0;
@@ -276,6 +280,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         // printf("set mask costs %fms\n", t_m.toc());
         ROS_DEBUG("detect feature begins");
         
+        EASY_BLOCK("Extract Feature", profiler::colors::PinkA200);
         int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());
         if(!USE_GPU)
         {
@@ -288,7 +293,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                     cout << "mask type wrong " << endl;
                 cv::goodFeaturesToTrack(cur_img, n_pts, MAX_CNT - cur_pts.size(), 0.01, MIN_DIST, mask);
                 // printf("good feature to track costs: %fms\n", t_t.toc());
-                std::cout << "n_pts size: "<< n_pts.size()<<std::endl;
+                // std::cout << "n_pts size: "<< n_pts.size()<<std::endl;
             }
             else
                 n_pts.clear();
@@ -328,18 +333,22 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 n_pts.clear();
         }
 #endif
+        EASY_END_BLOCK;
+
+        EASY_BLOCK("Add Feature", profiler::colors::IndigoA100);
 
         ROS_DEBUG("add feature begins");
         TicToc t_a;
         addPoints();
         // ROS_DEBUG("selectFeature costs: %fms", t_a.toc());
         // printf("selectFeature costs: %fms\n", t_a.toc());
+        EASY_END_BLOCK;
     }
 
     cur_un_pts = undistortedPts(cur_pts, m_camera[0]);
     pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map);
 
-    if(!_img1.empty() && stereo_cam)
+    if(!_img1.empty() && stereo_cam) // stereo
     {
         ids_right.clear();
         cur_right_pts.clear();
@@ -349,7 +358,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         if(!cur_pts.empty())
         {
             //printf("stereo image; track feature on right image\n");
-            
+
             vector<cv::Point2f> reverseLeftPts;
             vector<uchar> status, statusRightLeft;
             if(!USE_GPU_ACC_FLOW)
@@ -439,6 +448,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     if(SHOW_TRACK)
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
 
+    EASY_BLOCK("Make FeatureFrame", profiler::colors::TealA200);
+
     prev_img = cur_img;
     prev_pts = cur_pts;
     prev_un_pts = cur_un_pts;
@@ -470,6 +481,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
+    EASY_END_BLOCK;
 
     if (!_img1.empty() && stereo_cam)
     {

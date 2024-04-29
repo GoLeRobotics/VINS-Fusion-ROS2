@@ -24,6 +24,17 @@ find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Ceres REQUIRED)
 
+# easy profiler
+set(CMAKE_PREFIX_PATH /home/gole006/Downloads/easy_profiler/lib/cmake/easy_profiler)
+find_package(easy_profiler REQUIRED)
+include_directories("/home/gole006/Downloads/easy_profiler/include")
+
+#shared_memory
+set(GOLE_CORE_LIB $ENV{GOLE_CORE_LIB})
+find_library(SHARED_MEMORY_LIB shared_memory PATHS ${GOLE_CORE_LIB})
+message("Shared_memory executable: ${SHARED_MEMORY_LIB}")
+set(GOLE_INCLUDE_DIR $ENV{PYTHON_SITE_PKGS}/gole/gole_cpp/include/)
+
 include_directories(${CERES_INCLUDE_DIRS})
 
 # include camera_models
@@ -53,21 +64,25 @@ add_library(vins_lib
     src/initial/initial_sfm.cpp
     src/initial/initial_ex_rotation.cpp
     src/featureTracker/feature_tracker.cpp)
-target_link_libraries(vins_lib  ${OpenCV_LIBS} ${CERES_LIBRARIES})
+target_link_libraries(vins_lib  ${OpenCV_LIBS} ${CERES_LIBRARIES} easy_profiler ${SHARED_MEMORY_LIB})
+target_include_directories(vins_lib PUBLIC include ${GOLE_INCLUDE_DIR})
 
 ament_target_dependencies(vins_lib rclcpp rcpputils std_msgs visualization_msgs geometry_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
 
 add_executable(vins_node src/rosNodeTest.cpp)
 ament_target_dependencies(vins_node rclcpp rcpputils std_msgs visualization_msgs geometry_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
-target_link_libraries(vins_node vins_lib) 
+target_link_libraries(vins_node vins_lib ${SHARED_MEMORY_LIB})
+target_include_directories(vins_node PUBLIC include ${GOLE_INCLUDE_DIR})
 
 add_executable(kitti_odom_test src/KITTIOdomTest.cpp)
 ament_target_dependencies(kitti_odom_test rclcpp rcpputils std_msgs visualization_msgs geometry_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
-target_link_libraries(kitti_odom_test vins_lib) 
+target_link_libraries(kitti_odom_test vins_lib ${SHARED_MEMORY_LIB})
+target_include_directories(kitti_odom_test PUBLIC include ${GOLE_INCLUDE_DIR})
 
 add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
 ament_target_dependencies(kitti_gps_test rclcpp rcpputils std_msgs visualization_msgs geometry_msgs nav_msgs tf2 tf2_ros cv_bridge camera_models image_transport)
-target_link_libraries(kitti_gps_test vins_lib) 
+target_link_libraries(kitti_gps_test vins_lib ${SHARED_MEMORY_LIB})
+target_include_directories(kitti_gps_test PUBLIC include ${GOLE_INCLUDE_DIR})
 
 # added from DEBUG
 

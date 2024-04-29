@@ -9,6 +9,7 @@
 
 #include "estimator.h"
 #include "../utility/visualization.h"
+#include <easy/profiler.h>
 
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -118,12 +119,14 @@ void Estimator::setParameter()
     featureTracker.readIntrinsicParameter(CAM_NAMES);
 
     std::cout << "MULTIPLE_THREAD is " << MULTIPLE_THREAD << '\n';
+    EASY_BLOCK("Process Measurements", profiler::colors::CyanA100);
     if (MULTIPLE_THREAD && !initThreadFlag)
     {
         initThreadFlag = true;
         processThread = std::thread(&Estimator::processMeasurements, this);
     }
     mProcess.unlock();
+    EASY_END_BLOCK;
 }
 
 void Estimator::changeSensorType(int use_imu, int use_stereo)
@@ -170,20 +173,24 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
 
-    if(_img1.empty())
+    EASY_BLOCK("Track image", profiler::colors::CyanA100);
+    if(_img1.empty()) // monocular mode
         featureFrame = featureTracker.trackImage(t, _img);
-    else
+    else // stereo mode
         featureFrame = featureTracker.trackImage(t, _img, _img1);
     //printf("featureTracker time: %f\n", featureTrackerTime.toc());
+    EASY_END_BLOCK;
 
+    EASY_BLOCK("Pub track Image", profiler::colors::Red);
     if (SHOW_TRACK)
     {
         cv::Mat imgTrack = featureTracker.getTrackImage();
-        pubTrackImage(imgTrack, t);
+        pubTrackImage(imgTrack, t); // t = time
     }
-    
-    if(MULTIPLE_THREAD)  
-    {     
+    EASY_END_BLOCK;
+
+    if(MULTIPLE_THREAD)
+    {
         if(inputImageCnt % 2 == 0)
         {
             mBuf.lock();
@@ -283,6 +290,15 @@ bool Estimator::IMUAvailable(double t)
 
 void Estimator::processMeasurements()
 {
+    EASY_THREAD("Process Measurements");
+
+#ifdef DEBUG
+    double ts = 0;
+    static double last_ts = 0;
+    static double sum_of_ts = 0;
+    static int ts_cnt = 0;
+#endif
+
     while (1)
     {
         // cout << "[processMeasurements]  loop - start" << endl;
@@ -310,16 +326,19 @@ void Estimator::processMeasurements()
             }
             // cout << "2" << endl;
             mBuf.lock();
+            EASY_BLOCK("Get IMU Interval", profiler::colors::LimeA200);
             if(USE_IMU)
             {
                 // cout << "2-1)" << endl;
                 getIMUInterval(prevTime, curTime, accVector, gyrVector);
                 // cout << "2-2)" << endl;
             }
+            EASY_END_BLOCK;
 
             featureBuf.pop();
             mBuf.unlock();
 
+            EASY_BLOCK("Init IMU pose", profiler::colors::PinkA200);
             // cout << "3" << endl;
             if(USE_IMU)
             {
@@ -337,15 +356,19 @@ void Estimator::processMeasurements()
                     processIMU(accVector[i].first, dt, accVector[i].second, gyrVector[i].second);
                 }
             }
-            // cout << "4" << endl;
+            EASY_END_BLOCK;
 
+            // cout << "4" << endl;
+            EASY_BLOCK("Process Image features", profiler::colors::TealA200);
             mProcess.lock();
             processImage(feature.second, feature.first);
             prevTime = curTime;
-
+            EASY_END_BLOCK;
+#ifdef PRINT
             // cout << "5" << endl;
-
+            EASY_BLOCK("Print Stats", profiler::colors::IndigoA100);
             printStatistics(*this, 0);
+            EASY_END_BLOCK;
 
             std_msgs::msg::Header header;
             header.frame_id = "world";
@@ -369,10 +392,26 @@ void Estimator::processMeasurements()
             // cout << "5-6" << endl;
             mProcess.unlock();
 
-
             // cout << "6" << endl;
 
             // assert(0);
+#endif
+
+#ifdef DEBUG
+            // calculate fps after processing
+            double time_stamp = (header.stamp.sec + header.stamp.nanosec* (1e-9)) * (1e3);
+            double time_diff = std::abs(time_stamp - last_ts);
+            sum_of_ts += time_diff;
+            ++ts_cnt;
+            if (sec_ts - ts >= 1)
+            {
+                std::cout << "fps : " << 1000 / (sum_of_ts / ts_cnt) << std::endl;
+                sum_of_ts = 0;
+                ts_cnt = 0;
+                ts = header.stamp.sec;
+            }
+            last_ts = time_stamp;
+#endif
         }
         // cout << "[processMeasurements]  loop - end" << endl;
 
@@ -438,7 +477,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
         linear_acceleration_buf[frame_count].push_back(linear_acceleration);
         angular_velocity_buf[frame_count].push_back(angular_velocity);
 
-        int j = frame_count;         
+        int j = frame_count;
         Vector3d un_acc_0 = Rs[j] * (acc_0 - Bas[j]) - g;
         Vector3d un_gyr = 0.5 * (gyr_0 + angular_velocity) - Bgs[j];
         Rs[j] *= Utility::deltaQ(un_gyr * dt).toRotationMatrix();
@@ -448,14 +487,14 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
         Vs[j] += dt * un_acc;
     }
     acc_0 = linear_acceleration;
-    gyr_0 = angular_velocity; 
+    gyr_0 = angular_velocity;
 }
 
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)
 {
 
 
-    cout << std::fixed << header << endl;
+    // cout << std::fixed << header << endl;  // print timestamp
 
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
@@ -507,11 +546,13 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             if (frame_count == WINDOW_SIZE)
             {
                 bool result = false;
+                EASY_BLOCK("Check IMU initial Structure", profiler::colors::PurpleA100);
                 if(ESTIMATE_EXTRINSIC != 2 && (header - initial_timestamp) > 0.1)
                 {
                     result = initialStructure();
-                    initial_timestamp = header;   
+                    initial_timestamp = header;
                 }
+                EASY_END_BLOCK;
                 if(result)
                 {
                     optimization();
@@ -553,8 +594,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             }
         }
 
-        // stereo only initilization
-        if(STEREO && !USE_IMU)
+        // mono only initilization
+        if(!STEREO && !USE_IMU)
         {
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
             f_manager.triangulate(frame_count, Ps, Rs, tic, ric);
@@ -591,7 +632,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         // optimization
         TicToc t_solve;
         optimization();
-        ROS_INFO("solver costs: %f [ms]", t_solve.toc());
+        // ROS_INFO("solver costs: %f [ms]", t_solve.toc());
 
         set<int> removeIndex;
         outliersRejection(removeIndex);
@@ -601,7 +642,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             featureTracker.removeOutliers(removeIndex);
             predictPtsInNextFrame();
         }
-            
+
 
         if (failureDetection())
         {
@@ -655,7 +696,7 @@ bool Estimator::initialStructure()
         //ROS_WARN("IMU variation %f!", var);
         if(var < 0.25)
         {
-            ROS_INFO("IMU excitation not enouth!");
+            ROS_INFO("IMU excitation not enough!");
             //return false;
         }
     }
@@ -1122,11 +1163,11 @@ void Estimator::optimization()
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (it_per_id.used_num < 4)
             continue;
- 
+
         ++feature_index;
 
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
-        
+
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
@@ -1141,7 +1182,7 @@ void Estimator::optimization()
             }
 
             if(STEREO && it_per_frame.is_stereo)
-            {                
+            {
                 Vector3d pts_j_right = it_per_frame.pointRight;
                 if(imu_i != imu_j)
                 {
@@ -1155,7 +1196,7 @@ void Estimator::optimization()
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
-               
+
             }
             f_m_cnt++;
         }
@@ -1599,8 +1640,8 @@ void Estimator::outliersRejection(set<int> &removeIndex)
             imu_j++;
             if (imu_i != imu_j)
             {
-                Vector3d pts_j = it_per_frame.point;             
-                double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
+                Vector3d pts_j = it_per_frame.point;
+                double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
                                                     Rs[imu_j], Ps[imu_j], ric[0], tic[0],
                                                     depth, pts_i, pts_j);
                 err += tmp_error;
@@ -1641,6 +1682,7 @@ void Estimator::outliersRejection(set<int> &removeIndex)
 
 void Estimator::fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity)
 {
+    EASY_BLOCK("Predict IMU", profiler::colors::Orange400);
     double dt = t - latest_time;
     latest_time = t;
     Eigen::Vector3d un_acc_0 = latest_Q * (latest_acc_0 - latest_Ba) - g;
@@ -1652,10 +1694,12 @@ void Estimator::fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Ei
     latest_V = latest_V + dt * un_acc;
     latest_acc_0 = linear_acceleration;
     latest_gyr_0 = angular_velocity;
+    EASY_END_BLOCK;
 }
 
 void Estimator::updateLatestStates()
 {
+    EASY_BLOCK("Update Latest States", profiler::colors::Green100);
     mPropagate.lock();
     latest_time = Headers[frame_count] + td;
     latest_P = Ps[frame_count];
@@ -1679,4 +1723,28 @@ void Estimator::updateLatestStates()
         tmp_gyrBuf.pop();
     }
     mPropagate.unlock();
+
+    static std::string robot_name = "gole_001";
+    static auto&& odom_shm_ = utility::SharedMemory<shared_memory::OdomState>(robot_name);
+    static auto&& odom_state_ = odom_shm_.GetData();
+
+    odom_state_.timestamp[0] = latest_time;
+    // odom_state_.header.frame_id = robot_name + "/odom";
+    // odom_state_.child_frame_id = "base_footprint";
+    odom_state_.p_ob = latest_P;
+    odom_state_.quat_ob[0] = latest_Q.x();
+    odom_state_.quat_ob[1] = latest_Q.y();
+    odom_state_.quat_ob[2] = latest_Q.z();
+    odom_state_.quat_ob[3] = latest_Q.w();
+    odom_state_.v_ob = latest_V;
+    odom_state_.w_ob = latest_gyr_0;
+
+    Eigen::Matrix <double, 6, 6> cov;
+    cov.setZero();
+    odom_state_.cov_pose_ob = cov;
+    odom_state_.cov_twist_ob = cov;
+
+    odom_shm_.SetData(odom_state_);
+
+    EASY_END_BLOCK;
 }

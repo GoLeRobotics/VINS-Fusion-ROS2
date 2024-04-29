@@ -83,7 +83,7 @@ void pubTrackImage(const cv::Mat &imgTrack, const double t)
     header.stamp.sec = sec_ts;
     header.stamp.nanosec = nsec_ts;
 
-    // sensor_msgs::msg::ImagePtr 
+    // sensor_msgs::msg::ImagePtr
     sensor_msgs::msg::Image::SharedPtr imgTrackMsg = cv_bridge::CvImage(header, "bgr8", imgTrack).toImageMsg();
     pub_image_track->publish(*imgTrackMsg);
 }
@@ -164,26 +164,26 @@ void pubOdometry(const Estimator &estimator, const std_msgs::msg::Header &header
         pub_path->publish(path);
 
         // write result to file
-        ofstream foutC(VINS_RESULT_PATH, ios::app);
-        foutC.setf(ios::fixed, ios::floatfield);
-        foutC.precision(0);
-        foutC << header.stamp.sec + header.stamp.nanosec * (1e-9) << ",";
-        foutC.precision(5);
-        foutC << estimator.Ps[WINDOW_SIZE].x() << ","
-              << estimator.Ps[WINDOW_SIZE].y() << ","
-              << estimator.Ps[WINDOW_SIZE].z() << ","
-              << tmp_Q.w() << ","
-              << tmp_Q.x() << ","
-              << tmp_Q.y() << ","
-              << tmp_Q.z() << ","
-              << estimator.Vs[WINDOW_SIZE].x() << ","
-              << estimator.Vs[WINDOW_SIZE].y() << ","
-              << estimator.Vs[WINDOW_SIZE].z() << "," << endl;
-        foutC.close();
-        Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
-        printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.sec + header.stamp.nanosec * (1e-9),
-                                                          tmp_T.x(), tmp_T.y(), tmp_T.z(),
-                                                          tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
+        // ofstream foutC(VINS_RESULT_PATH, ios::app);
+        // foutC.setf(ios::fixed, ios::floatfield);
+        // foutC.precision(0);
+        // foutC << header.stamp.sec + header.stamp.nanosec * (1e-9) << ",";
+        // foutC.precision(5);
+        // foutC << estimator.Ps[WINDOW_SIZE].x() << ","
+        //       << estimator.Ps[WINDOW_SIZE].y() << ","
+        //       << estimator.Ps[WINDOW_SIZE].z() << ","
+        //       << tmp_Q.w() << ","
+        //       << tmp_Q.x() << ","
+        //       << tmp_Q.y() << ","
+        //       << tmp_Q.z() << ","
+        //       << estimator.Vs[WINDOW_SIZE].x() << ","
+        //       << estimator.Vs[WINDOW_SIZE].y() << ","
+        //       << estimator.Vs[WINDOW_SIZE].z() << "," << endl;
+        // foutC.close();
+        // Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
+        // printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.sec + header.stamp.nanosec * (1e-9),
+        //                                                   tmp_T.x(), tmp_T.y(), tmp_T.z(),
+        //                                                   tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
     }
 }
 
@@ -198,7 +198,8 @@ void pubKeyPoses(const Estimator &estimator, const std_msgs::msg::Header &header
     key_poses.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     key_poses.action = visualization_msgs::msg::Marker::ADD;
     key_poses.pose.orientation.w = 1.0;
-    key_poses.lifetime = rclcpp::Duration(0);
+    // key_poses.lifetime = rclcpp::Duration(0);
+    key_poses.lifetime = rclcpp::Duration::from_seconds(0);
 
     //static int key_poses_id = 0;
     key_poses.id = 0; //key_poses_id++;
@@ -341,7 +342,7 @@ void pubTF(const Estimator &estimator, const std_msgs::msg::Header &header)
     cout << "tf 3" << endl;
 
     
-    cout << header.stamp.sec + header.stamp.nanosec * (1e-9) << endl;
+    // cout << header.stamp.sec + header.stamp.nanosec * (1e-9) << endl;
     cout << correct_t << endl;
     cout << correct_q.w() << " " << correct_q.x() << " " << correct_q.y() << " " << correct_q.z() << endl;
 
@@ -399,7 +400,6 @@ void pubTF(const Estimator &estimator, const std_msgs::msg::Header &header)
 
     cout << "tf 7" << endl;
 
-    
     nav_msgs::msg::Odometry odometry;
     odometry.header = header;
     odometry.header.frame_id = "world";

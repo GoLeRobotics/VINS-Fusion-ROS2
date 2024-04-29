@@ -36,6 +36,10 @@
 #include "../factor/projectionOneFrameTwoCamFactor.h"
 #include "../featureTracker/feature_tracker.h"
 
+// shared memory
+#include "shared_memory.h"    // utility::SharedMemory feature
+#include "memory/odom_state.h"
+
 #define ROS_INFO RCUTILS_LOG_INFO
 #define ROS_WARN RCUTILS_LOG_WARN
 #define ROS_ERROR RCUTILS_LOG_ERROR
