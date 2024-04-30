@@ -1613,7 +1613,13 @@ void Estimator::updateLatestStates()
     odom_state_.timestamp[0] = latest_time;
     // odom_state_.header.frame_id = robot_name + "/odom";
     // odom_state_.child_frame_id = "base_footprint";
-    odom_state_.p_ob = latest_P;
+    odom_state_.p_ob[0] = latest_P[1];
+    odom_state_.p_ob[1] = latest_P[0];
+    odom_state_.p_ob[2] = -latest_P[2];
+    auto euler = Utility::R2ypr(latest_Q.toRotationMatrix());
+    odom_state_.eur_ob[0] = euler[1];  // roll
+    odom_state_.eur_ob[1] = euler[2]; // pitch
+    odom_state_.eur_ob[2] = euler[0];  // yaw
     odom_state_.quat_ob[0] = latest_Q.x();
     odom_state_.quat_ob[1] = latest_Q.y();
     odom_state_.quat_ob[2] = latest_Q.z();

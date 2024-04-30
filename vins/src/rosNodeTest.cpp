@@ -63,9 +63,7 @@ cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::ConstPtr &img_msg)
 // extract images with same timestamp from two topics
 void sync_process()
 {
-    double ts = 0;
-    static double last_ts = 0;
-    static double sum_of_ts = 0;
+    static double ts, last_ts, sum_of_ts = 0;
     static int ts_cnt = 0;
     while(1)
     {
