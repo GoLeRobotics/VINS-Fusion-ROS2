@@ -570,7 +570,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
         }
 
     }
-    else
+    else // after initializing
     {
         if(!USE_IMU)
             f_manager.initFramePoseByPnP(frame_count, Ps, Rs, tic, ric);
@@ -1606,8 +1606,7 @@ void Estimator::updateLatestStates()
     }
     mPropagate.unlock();
 
-    static std::string robot_name = "gole_001";
-    static auto&& odom_shm_ = utility::SharedMemory<shared_memory::OdomState>(robot_name);
+    static auto&& odom_shm_ = utility::SharedMemory<shared_memory::OdomState>(ROBOT_NAME);
     static auto&& odom_state_ = odom_shm_.GetData();
 
     odom_state_.timestamp[0] = latest_time;
@@ -1616,10 +1615,16 @@ void Estimator::updateLatestStates()
     odom_state_.p_ob[0] = latest_P[1];
     odom_state_.p_ob[1] = latest_P[0];
     odom_state_.p_ob[2] = -latest_P[2];
-    auto euler = Utility::R2ypr(latest_Q.toRotationMatrix());
-    odom_state_.eur_ob[0] = euler[1];  // roll
-    odom_state_.eur_ob[1] = euler[2]; // pitch
-    odom_state_.eur_ob[2] = euler[0];  // yaw
+
+    latest_Q.x() += QUAT_X;
+    latest_Q.y() += QUAT_Y;
+    latest_Q.z() += QUAT_Z;
+    latest_Q.w() += QUAT_W;
+
+    auto euler = Utility::R2ypr(latest_Q.toRotationMatrix()) * M_PI / 180.0;
+    // odom_state_.eur_ob[0] = euler[1];  // roll
+    // odom_state_.eur_ob[1] = euler[2]; // pitch
+    // odom_state_.eur_ob[2] = euler[0];  // yaw
     odom_state_.quat_ob[0] = latest_Q.x();
     odom_state_.quat_ob[1] = latest_Q.y();
     odom_state_.quat_ob[2] = latest_Q.z();

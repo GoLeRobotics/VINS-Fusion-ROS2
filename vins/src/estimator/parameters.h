@@ -24,6 +24,8 @@ using namespace std;
 #define ROS_WARN RCUTILS_LOG_WARN
 #define ROS_ERROR RCUTILS_LOG_ERROR
 
+extern std::string ROBOT_NAME;
+
 const double FOCAL_LENGTH = 460.0;
 const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
@@ -39,6 +41,7 @@ extern int USE_GPU_CERES;
 
 extern double ACC_N, ACC_W;
 extern double GYR_N, GYR_W;
+extern double QUAT_X, QUAT_Y, QUAT_Z, QUAT_W;
 
 extern std::vector<Eigen::Matrix3d> RIC;
 extern std::vector<Eigen::Vector3d> TIC;

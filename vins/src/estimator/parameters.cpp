@@ -1,18 +1,21 @@
 /*******************************************************
  * Copyright (C) 2019, Aerial Robotics Group, Hong Kong University of Science and Technology
- * 
+ *
  * This file is part of VINS.
- * 
+ *
  * Licensed under the GNU General Public License v3.0;
  * you may not use this file except in compliance with the License.
  *******************************************************/
 
 #include "parameters.h"
 
+std::string ROBOT_NAME;
+
 double INIT_DEPTH;
 double MIN_PARALLAX;
 double ACC_N, ACC_W;
 double GYR_N, GYR_W;
+double QUAT_X, QUAT_Y, QUAT_Z, QUAT_W;
 
 std::vector<Eigen::Matrix3d> RIC;
 std::vector<Eigen::Vector3d> TIC;
@@ -74,7 +77,7 @@ void readParameters(std::string config_file)
     if(fh == NULL){
         ROS_WARN("config_file dosen't exist; wrong config_file path");
         // ROS_BREAK();
-        return;          
+        return;
     }
     fclose(fh);
 
@@ -86,6 +89,8 @@ void readParameters(std::string config_file)
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     // fsSettings["image1_topic"] >> IMAGE1_TOPIC;
+    fsSettings["robot_name"] >> ROBOT_NAME;
+
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     F_THRESHOLD = fsSettings["F_threshold"];
@@ -109,6 +114,10 @@ void readParameters(std::string config_file)
         GYR_N = fsSettings["gyr_n"];
         GYR_W = fsSettings["gyr_w"];
         G.z() = fsSettings["g_norm"];
+        QUAT_X = fsSettings["quat_x"];
+        QUAT_Y = fsSettings["quat_y"];
+        QUAT_Z = fsSettings["quat_z"];
+        QUAT_W = fsSettings["quat_w"];
     }
 
     SOLVER_TIME = fsSettings["max_solver_time"];
@@ -130,7 +139,7 @@ void readParameters(std::string config_file)
         TIC.push_back(Eigen::Vector3d::Zero());
         EX_CALIB_RESULT_PATH = OUTPUT_FOLDER + "/extrinsic_parameter.csv";
     }
-    else 
+    else
     {
         if ( ESTIMATE_EXTRINSIC == 1)
         {

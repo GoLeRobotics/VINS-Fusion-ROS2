@@ -1,6 +1,9 @@
 %YAML:1.0
 
 #common parameters
+
+robot_name: gole_001
+
 #support: 1 imu 1 cam; 1 imu 2 cam: 2 cam;
 imu: 1
 num_of_cam: 1
@@ -10,8 +13,8 @@ image0_topic: "/camera/color/image_raw"
 output_path: "home/dev/proj/gole_vio/VINS-FUSION-ROS2/output/"
 
 cam0_calib: "left.yaml"
-image_width: 320
-image_height: 240
+image_width: 640
+image_height: 480
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -49,6 +52,12 @@ gyr_n: 0.01         # gyroscope measurement noise standard deviation.     #0.05 
 acc_w: 0.001        # accelerometer bias random work noise standard deviation.  #0.02
 gyr_w: 0.0001       # gyroscope bias random work noise standard deviation.     #4.0e-5
 g_norm: 9.8         # gravity magnitude
+
+#imu initialize
+quat_x: 0.83
+quat_y: -0.01
+quat_z: -0.02
+quat_w: 0.48
 
 #unsynchronization parameters
 estimate_td: 0                      # online estimate time offset between camera and imu
