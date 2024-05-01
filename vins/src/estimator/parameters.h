@@ -41,7 +41,6 @@ extern int USE_GPU_CERES;
 
 extern double ACC_N, ACC_W;
 extern double GYR_N, GYR_W;
-extern double QUAT_X, QUAT_Y, QUAT_Z, QUAT_W;
 
 extern std::vector<Eigen::Matrix3d> RIC;
 extern std::vector<Eigen::Vector3d> TIC;

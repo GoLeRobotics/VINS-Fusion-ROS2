@@ -15,7 +15,6 @@ double INIT_DEPTH;
 double MIN_PARALLAX;
 double ACC_N, ACC_W;
 double GYR_N, GYR_W;
-double QUAT_X, QUAT_Y, QUAT_Z, QUAT_W;
 
 std::vector<Eigen::Matrix3d> RIC;
 std::vector<Eigen::Vector3d> TIC;
@@ -114,10 +113,6 @@ void readParameters(std::string config_file)
         GYR_N = fsSettings["gyr_n"];
         GYR_W = fsSettings["gyr_w"];
         G.z() = fsSettings["g_norm"];
-        QUAT_X = fsSettings["quat_x"];
-        QUAT_Y = fsSettings["quat_y"];
-        QUAT_Z = fsSettings["quat_z"];
-        QUAT_W = fsSettings["quat_w"];
     }
 
     SOLVER_TIME = fsSettings["max_solver_time"];
