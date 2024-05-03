@@ -1612,6 +1612,21 @@ void Estimator::updateLatestStates()
     odom_state_.timestamp[0] = latest_time;
     // odom_state_.header.frame_id = robot_name + "/odom";
     // odom_state_.child_frame_id = "base_footprint";
+
+    // camera to body transform
+    latest_P.push_back(0);
+    std::cout << "latest_P size : " << latest_P.size() << std::endl;
+    Eigen::Matrix4d<double, 4, 4> TF;
+    TF.push_back(RIC[0](0, 0));
+    TF.push_back(TIC[0](0, 3));
+    latest_P =  latest_P * TF;
+    std::cout << "latest_P size : " << latest_P.size() << std::endl;
+
+    // mathmatical transform
+    double yaw = - euler.x() * M_PI / 180.0;
+    odom_state_.p_ob[0] = latest_P[1](1 - sin(yaw));
+    odom_state_.p_ob[1] = latest_P[0](1 - cos(yaw));
+
     odom_state_.p_ob[0] = latest_P[1];
     odom_state_.p_ob[1] = latest_P[0];
     odom_state_.p_ob[2] = -latest_P[2];
