@@ -1610,26 +1610,27 @@ void Estimator::updateLatestStates()
     static auto&& odom_state_ = odom_shm_.GetData();
 
     odom_state_.timestamp[0] = latest_time;
-    // odom_state_.header.frame_id = robot_name + "/odom";
-    // odom_state_.child_frame_id = "base_footprint";
 
     // camera to body transform
-    latest_P.push_back(0);
-    std::cout << "latest_P size : " << latest_P.size() << std::endl;
-    Eigen::Matrix4d<double, 4, 4> TF;
-    TF.push_back(RIC[0](0, 0));
-    TF.push_back(TIC[0](0, 3));
-    latest_P =  latest_P * TF;
-    std::cout << "latest_P size : " << latest_P.size() << std::endl;
+    Eigen::MatrixXd P(4, 1);
+    Eigen::Matrix4d TF;
 
-    // mathmatical transform
-    double yaw = - euler.x() * M_PI / 180.0;
-    odom_state_.p_ob[0] = latest_P[1](1 - sin(yaw));
-    odom_state_.p_ob[1] = latest_P[0](1 - cos(yaw));
+    P << latest_P[0], latest_P[1], latest_P[2], 0;
+    TF << RIC[0], TIC[0], 0, 0, 0, 1;
+    P =  TF * P;
 
+    Vector3d euler = Utility::R2ypr(latest_Q.toRotationMatrix()); // quaternion to euler angle
+
+    // // mathmatical transform
+    double yaw = - euler.x();
+    // odom_state_.p_ob[0] = latest_P[1] - 0.4 * sin(yaw);
+    // odom_state_.p_ob[1] = latest_P[0] - 0.4 * cos(yaw);
+
+    // odom_state_.p_ob[0] = P(1, 0);
+    // odom_state_.p_ob[1] = P(0, 0);
     odom_state_.p_ob[0] = latest_P[1];
     odom_state_.p_ob[1] = latest_P[0];
-    odom_state_.p_ob[2] = -latest_P[2];
+    odom_state_.p_ob[2] = latest_P[2];
 
     static double quat_x = latest_Q.x();
     static double quat_y = latest_Q.y();
@@ -1641,13 +1642,10 @@ void Estimator::updateLatestStates()
     latest_Q.z() -= quat_z;
     latest_Q.w() = latest_Q.w() - quat_w + 1;
 
-    Vector3d euler = Utility::R2ypr(latest_Q.toRotationMatrix()); // quaternion to euler angle
-    // odom_state_.eur_ob[0] = euler[1] * M_PI / 180.0;   // roll
-    // odom_state_.eur_ob[1] = euler[2] * M_PI / 90.0;     // pitch
-    // odom_state_.eur_ob[1] = (odom_state_.eur_ob[1] > 3.14) ? -(2 * M_PI - odom_state_.eur_ob[1]) : odom_state_.eur_ob[1];
-    // odom_state_.eur_ob[2] = - euler[0] * M_PI / 180.0;   // yaw
     odom_state_.eur_ob[0] = euler.z() * M_PI / 180.0;   // roll
     odom_state_.eur_ob[1] = euler.y() * M_PI / 180.0;   // pitch
+    // odom_state_.eur_ob[1] = euler[2] * M_PI / 90.0;
+    // odom_state_.eur_ob[1] = (odom_state_.eur_ob[1] > 3.14) ? -(2 * M_PI - odom_state_.eur_ob[1]) : odom_state_.eur_ob[1];
     odom_state_.eur_ob[2] = - euler.x() * M_PI / 180.0;   // yaw
     odom_state_.quat_ob[0] = latest_Q.x();
     odom_state_.quat_ob[1] = latest_Q.y();
