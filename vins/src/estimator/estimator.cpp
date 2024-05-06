@@ -1611,32 +1611,29 @@ void Estimator::updateLatestStates()
 
     odom_state_.timestamp[0] = latest_time;
 
-    // // camera to body transform
-    // Eigen::MatrixXd P(4, 1);
-    // Eigen::Matrix4d TF;
-
-    // P << latest_P[0], latest_P[1], latest_P[2], 0;
-    // TF << RIC[0], TIC[0], 0, 0, 0, 1;
-    // P =  TF * P;
+    // camera to body transform
+    Eigen::MatrixXd P(4, 1);
+    Eigen::Matrix4d TF;
 
     Vector3d euler = Utility::R2ypr(latest_Q.toRotationMatrix()); // quaternion to euler angle
+    float yaw = euler.x() * M_PI / 180.0;
 
-    // // mathmatical transform
-    double yaw = - euler.x();
-    odom_state_.p_ob[0] = latest_P[1] - 0.3 * cos(yaw);
-    odom_state_.p_ob[1] = latest_P[0] - 0.3 * sin(yaw);
+    latest_P[0] = - latest_P[0];
+    P << latest_P[1], latest_P[0], latest_P[2], 1;
+    TIC[0] << -0.2 * cos(yaw), - 0.2 * sin(yaw), 0;
+    TF << RIC[0], TIC[0], 0, 0, 0, 1;
+    P =  TF * P;
+    odom_state_.p_ob[0] = P(0, 0) + 0.2;
+    odom_state_.p_ob[1] = P(1, 0);
+
     odom_state_.p_ob[2] = latest_P[2];
-
-    // odom_state_.p_ob[0] = P(1, 0);
-    // odom_state_.p_ob[1] = P(0, 0);
-    // odom_state_.p_ob[0] = latest_P[1];
-    // odom_state_.p_ob[1] = latest_P[0];
 
     static double quat_x = latest_Q.x();
     static double quat_y = latest_Q.y();
     static double quat_z = latest_Q.z();
     static double quat_w = latest_Q.w();
 
+    // initialize quaternion to zero
     latest_Q.x() -= quat_x;
     latest_Q.y() -= quat_y;
     latest_Q.z() -= quat_z;
@@ -1646,11 +1643,13 @@ void Estimator::updateLatestStates()
     odom_state_.eur_ob[1] = euler.y() * M_PI / 180.0;   // pitch
     // odom_state_.eur_ob[1] = euler[2] * M_PI / 90.0;
     // odom_state_.eur_ob[1] = (odom_state_.eur_ob[1] > 3.14) ? -(2 * M_PI - odom_state_.eur_ob[1]) : odom_state_.eur_ob[1];
-    odom_state_.eur_ob[2] = - euler.x() * M_PI / 180.0;   // yaw
+    odom_state_.eur_ob[2] = euler.x() * M_PI / 180.0;   // yaw
+
     odom_state_.quat_ob[0] = latest_Q.x();
     odom_state_.quat_ob[1] = latest_Q.y();
     odom_state_.quat_ob[2] = latest_Q.z();
     odom_state_.quat_ob[3] = latest_Q.w();
+
     odom_state_.v_ob = latest_V;
     odom_state_.w_ob = latest_gyr_0;
 
