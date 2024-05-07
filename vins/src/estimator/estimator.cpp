@@ -1616,16 +1616,16 @@ void Estimator::updateLatestStates()
     Eigen::Matrix4d TF;
 
     Vector3d euler = Utility::R2ypr(latest_Q.toRotationMatrix()); // quaternion to euler angle
-    float yaw = euler.x() * M_PI / 180.0;
+    float yaw = euler.x() * M_PI / 180.0; // yaw as radian
 
     latest_P[0] = - latest_P[0];
     P << latest_P[1], latest_P[0], latest_P[2], 1;
     TIC[0] << -0.2 * cos(yaw), - 0.2 * sin(yaw), 0;
     TF << RIC[0], TIC[0], 0, 0, 0, 1;
     P =  TF * P;
+
     odom_state_.p_ob[0] = P(0, 0) + 0.2;
     odom_state_.p_ob[1] = P(1, 0);
-
     odom_state_.p_ob[2] = latest_P[2];
 
     static double quat_x = latest_Q.x();
@@ -1641,9 +1641,10 @@ void Estimator::updateLatestStates()
 
     odom_state_.eur_ob[0] = euler.z() * M_PI / 180.0;   // roll
     odom_state_.eur_ob[1] = euler.y() * M_PI / 180.0;   // pitch
+    odom_state_.eur_ob[2] = euler.x() * M_PI / 180.0;   // yaw
+
     // odom_state_.eur_ob[1] = euler[2] * M_PI / 90.0;
     // odom_state_.eur_ob[1] = (odom_state_.eur_ob[1] > 3.14) ? -(2 * M_PI - odom_state_.eur_ob[1]) : odom_state_.eur_ob[1];
-    odom_state_.eur_ob[2] = euler.x() * M_PI / 180.0;   // yaw
 
     odom_state_.quat_ob[0] = latest_Q.x();
     odom_state_.quat_ob[1] = latest_Q.y();
