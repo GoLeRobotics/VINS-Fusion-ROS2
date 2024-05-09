@@ -38,7 +38,7 @@
 
 // shared memory
 #include "shared_memory.h"    // utility::SharedMemory feature
-#include "memory/odom_state.h"
+#include "memory/odomvio_state.h"
 
 #define ROS_INFO RCUTILS_LOG_INFO
 #define ROS_WARN RCUTILS_LOG_WARN

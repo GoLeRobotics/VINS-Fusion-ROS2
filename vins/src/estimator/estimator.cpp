@@ -1606,7 +1606,7 @@ void Estimator::updateLatestStates()
     }
     mPropagate.unlock();
 
-    static auto&& odom_shm_ = utility::SharedMemory<shared_memory::OdomState>(ROBOT_NAME);
+    static auto&& odom_shm_ = utility::SharedMemory<shared_memory::OdomvioState>(ROBOT_NAME);
     static auto&& odom_state_ = odom_shm_.GetData();
 
     odom_state_.timestamp[0] = latest_time;
