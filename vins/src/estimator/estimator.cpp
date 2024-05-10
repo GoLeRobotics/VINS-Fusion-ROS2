@@ -1611,20 +1611,19 @@ void Estimator::updateLatestStates()
 
     odom_state_.timestamp[0] = latest_time;
 
-    // camera to body transform
+    // camera to body transform (forward camera)
     Eigen::MatrixXd P(4, 1);
     Eigen::Matrix4d TF;
 
     Vector3d euler = Utility::R2ypr(latest_Q.toRotationMatrix()); // quaternion to euler angle
     float yaw = euler.x() * M_PI / 180.0; // yaw as radian
 
-    latest_P[0] = - latest_P[0];
-    P << latest_P[1], latest_P[0], latest_P[2], 1;
-    TIC[0] << -0.2 * cos(yaw), - 0.2 * sin(yaw), 0;
+    P << latest_P[1], - latest_P[0], latest_P[2], 1;
+    TIC[0] << -0.3 * cos(yaw), - 0.3 * sin(yaw), 0;
     TF << RIC[0], TIC[0], 0, 0, 0, 1;
     P =  TF * P;
 
-    odom_state_.p_ob[0] = P(0, 0) + 0.2;
+    odom_state_.p_ob[0] = P(0, 0) + 0.3;
     odom_state_.p_ob[1] = P(1, 0);
     odom_state_.p_ob[2] = latest_P[2];
 
@@ -1654,10 +1653,10 @@ void Estimator::updateLatestStates()
     odom_state_.v_ob = latest_V;
     odom_state_.w_ob = latest_gyr_0;
 
-    Eigen::Matrix <double, 6, 6> cov;
-    cov.setZero();
-    odom_state_.cov_pose_ob = cov;
-    odom_state_.cov_twist_ob = cov;
+    // Eigen::Matrix <double, 6, 6> cov;
+    // cov.setZero();
+    // odom_state_.cov_pose_ob = cov;
+    // odom_state_.cov_twist_ob = cov;
 
     odom_shm_.SetData(odom_state_);
 }
