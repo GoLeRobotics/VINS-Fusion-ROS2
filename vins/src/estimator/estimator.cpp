@@ -1624,6 +1624,7 @@ void Estimator::updateLatestStates()
     P =  TF * P;
 
     odom_state_.p_ob[0] = P(0, 0) + 0.3;
+    odom_state_.p_ob[0] = P(0, 0) + 0.3;
     odom_state_.p_ob[1] = P(1, 0);
     odom_state_.p_ob[2] = latest_P[2];
 
